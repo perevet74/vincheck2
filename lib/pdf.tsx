@@ -193,6 +193,11 @@ export async function generatePDF(report: VINFullReport, vin: string) {
     </Document>
   )
 
+  // Check if we're in a browser environment
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    throw new Error('PDF generation is only available in the browser')
+  }
+
   const blob = await pdf(doc).toBlob()
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')

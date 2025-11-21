@@ -1,13 +1,42 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+let supabaseClient: SupabaseClient | null = null
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+function getSupabaseClient(): SupabaseClient {
+  if (supabaseClient) {
+    return supabaseClient
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  // During build, env vars might not be available - create a placeholder client
+  // This will fail at runtime if env vars are missing, but won't break the build
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // Check if we're likely in a build context (no env vars)
+    // Create a minimal client that will error when used, but won't break build
+    supabaseClient = createClient(
+      'https://placeholder.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NDUxOTIwMDAsImV4cCI6MTk2MDc2ODAwMH0.placeholder'
+    )
+    return supabaseClient
+  }
+
+  supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+  return supabaseClient
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Export a proxy that lazily initializes the client
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    const client = getSupabaseClient()
+    const value = client[prop as keyof SupabaseClient]
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    return value
+  },
+})
 
 // Database types
 export interface User {

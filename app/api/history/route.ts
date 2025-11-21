@@ -30,30 +30,36 @@ export async function GET(request: NextRequest) {
 
     // Check if user has access (paid or subscription)
     if (userId) {
-      // Check subscription
-      const { data: subscription } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .gt('end_date', new Date().toISOString())
-        .single()
+      // Check if Supabase is configured
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        // During build or if not configured, skip database checks
+        // In production, this should be configured
+      } else {
+        // Check subscription
+        const { data: subscription } = await supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .gt('end_date', new Date().toISOString())
+          .single()
 
-      // Check one-time payment for this VIN
-      const { data: payment } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('vin', vin.toUpperCase())
-        .eq('status', 'completed')
-        .eq('payment_type', 'one_time')
-        .single()
+        // Check one-time payment for this VIN
+        const { data: payment } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('vin', vin.toUpperCase())
+          .eq('status', 'completed')
+          .eq('payment_type', 'one_time')
+          .single()
 
-      if (!subscription && !payment) {
-        return NextResponse.json(
-          { error: 'Payment required to access full report' },
-          { status: 403 }
-        )
+        if (!subscription && !payment) {
+          return NextResponse.json(
+            { error: 'Payment required to access full report' },
+            { status: 403 }
+          )
+        }
       }
     } else {
       return NextResponse.json(
@@ -160,7 +166,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Save to database
-    if (userId) {
+    if (userId && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       await supabase.from('vin_checks').insert({
         vin: vin.toUpperCase(),
         user_id: userId,
